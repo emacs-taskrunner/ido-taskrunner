@@ -65,6 +65,17 @@
 
 ;;;; Variables
 
+;; Variable aliases for customizable variables used in the backend
+(defvaralias 'ido-taskrunner-preferred-js-package-manager 'taskrunner-preferred-js-package-manager)
+(defvaralias 'ido-taskrunner-get-all-make-targets 'taskrunner-retrieve-all-make-targets)
+(defvaralias 'ido-taskrunner-gradle-heading-regexps 'taskrunner-gradle-heading-regexps)
+(defvaralias 'ido-taskrunner-build-dir-list 'taskrunner-build-dir-list)
+(defvaralias 'ido-taskrunner-source-dir-list 'taskrunner-source-dir-list)
+(defvaralias 'ido-taskrunner-go-task-bin-path 'taskrunner-go-task-bin-path)
+(defvaralias 'ido-taskrunner-mage-bin-path 'taskrunner-mage-bin-path)
+(defvaralias 'ido-taskrunner-doit-bin-path 'taskrunner-doit-bin-path)
+(defvaralias 'ido-taskrunner-no-previous-command-ran-warning 'taskrunner-no-previous-command-ran-warning)
+
 (defconst ido-taskrunner-no-task-warning
   "ido-taskrunner: No task has been selected!"
   "Warning used to indicate that the user has not selected any task.")
