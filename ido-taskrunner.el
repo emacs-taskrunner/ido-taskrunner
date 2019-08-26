@@ -4,8 +4,8 @@
 
 ;; Author: Yavor Konstantinov <ykonstantinov1 AT gmail DOT com>
 ;; URL: https://github.com/emacs-taskrunner/helm-taskrunner
-;; Version: 1.0
-;; Package-Requires: ((emacs "24"))
+;; Version: 0.8
+;; Package-Requires: ((emacs "25.1"))
 ;; Keywords: build-system taskrunner build task-runner tasks helm
 
 ;; This file is not part of GNU Emacs.
@@ -84,6 +84,15 @@
   "ido-taskrunner: You need to be visiting a project buffer!"
   "Warning used to indicate that the user is not visiting a project buffer.")
 
+(defconst ido-taskrunner--command-location-choices
+  '("Project Root"
+    "Project Root with args"
+    "Current Dir"
+    "Current Dir with args"
+    "Another Dir"
+    "Another Dir with args")
+  "Commands used to select the location where the selected task should be ran.")
+
 ;;;; Functions
 
 (defun ido-taskrunner--check-if-in-project ()
@@ -92,75 +101,109 @@ If it is not, prompt the user to select a project"
   ;; If we are not in a project, ask the user to switch to one
   (if (not (projectile-project-p))
       (projectile-switch-project)
+    t))
+
+(defvar ido-taskrunner-no-targets-found-warning
+  "ido-taskrunner: No targets found for current project!")
+(defvar ido-taskrunner-prompt-before-show nil)
+
+;; Functions which run tasks in a specific directory
+(defun ido-taskrunner--root-task (TASK)
+  "Run the task TASK in the project root without asking for extra args.
+This is the default command when selecting/running a task/target."
+  (taskrunner-run-task TASK nil nil t))
+
+(defun ido-taskrunner--root-task-prompt (TASK)
+  "Run the task TASK in the project root and ask the user for extra args."
+  (taskrunner-run-task TASK nil t t))
+
+(defun ido-taskrunner--current-dir (TASK)
+  "Run the task TASK in the directory visited by the current buffer.
+Do not prompt the user to supply any extra arguments."
+  (let ((curr-file (buffer-file-name)))
+    (when curr-file
+      (taskrunner-run-task TASK (file-name-directory curr-file) nil t))))
+
+(defun ido-taskrunner--current-dir-prompt (TASK)
+  "Run the task TASK in the directory visited by the current buffer.
+Prompt the user to supply extra arguments."
+  (let ((curr-file (buffer-file-name)))
+    (when curr-file
+      (taskrunner-run-task TASK (file-name-directory curr-file) t t))))
+
+(defun ido-taskrunner--select-dir (TASK)
+  "Run the task TASK in a directory chosen by the user."
+  (let ((command-directory (read-directory-name "Directory: " (projectile-project-root))))
+    (when command-directory
+      (taskrunner-run-task TASK command-directory nil t))))
+
+(defun ido-taskrunner--select-dir-prompt (TASK)
+  "Run the task TASK in a directory chosen by the user.
+Prompt the user to supply extra arguments."
+  (let ((command-directory (read-directory-name "Directory: " (projectile-project-root))))
+    (when command-directory
+      (taskrunner-run-task TASK command-directory t t))))
+
+(defun ido-taskrunner--command-dispatch (COMMAND LOCATION)
+  "Determine which location was chosen by the user during task selection.
+COMMAND is the command to run and LOCATION is the location chosen."
+  (cond
+   ((null LOCATION)
+    (message "You need to select a location to run it in!"))
+   ((string-equal LOCATION "Project Root")
+    (ido-taskrunner--root-task COMMAND))
+   ((string-equal LOCATION "Project Root with args")
+    (ido-taskrunner--root-task-prompt COMMAND))
+   ((string-equal LOCATION "Current Dir")
+    (ido-taskrunner--current-dir COMMAND))
+   ((string-equal LOCATION "Current Dir with args")
+    (ido-taskrunner--current-dir-prompt COMMAND))
+   ((string-equal LOCATION "Another Dir")
+    (ido-taskrunner--select-dir COMMAND))
+   ((string-equal LOCATION "Another Dir with args")
+    (ido-taskrunner--select-dir-prompt COMMAND))))
+
+(defun ido-taskrunner--run-ido-for-targets (TARGETS)
+  "Launch an ido instance with candidates TARGETS.
+If TARGETS is nil then a warning is shown to indicate that no targets were found."
+  (let ((command-choice)
+        (folder-choice))
+    (if (null TARGETS)
+        (message "No tasks")
+      (progn
+        (setq command-choice (ido-completing-read "Task to run: " TARGETS nil t))
+        (when command-choice
+          (setq folder-choice (ido-completing-read
+                               "Location to run task in: "
+                               ido-taskrunner--command-location-choices
+                               nil t))
+          (ido-taskrunner--command-dispatch command-choice folder-choice)
+          )
+        )
+      )
     )
   )
 
 ;;;###autoload
-(defun ido-taskrunner-project-root ()
-  "Launch ido to select a task and run it in the current project."
+(defun ido-taskrunner-update-cache ()
+  "Refresh the task cache for the current project and show all tasks."
   (interactive)
   (ido-taskrunner--check-if-in-project)
   (if (projectile-project-p)
-      (let ((TASK
-             (ido-completing-read "Task to run: "
-                                  (taskrunner-get-tasks-from-cache) nil t)))
-        (if TASK
-            (taskrunner-run-task TASK (projectile-project-root) nil)
-          (message ido-taskrunner-no-task-warning))
-        )
-    (message ido-taskrunner-no-project-warning))
-  )
-
-;;;###autoload
-(defun ido-taskrunner-project-root-prompt ()
-  "Launch ido to select a task and run it in the current project.
-Additionally, ask the user to supply extra arguments to the task ran."
-  (interactive)
-  (ido-taskrunner--check-if-in-project)
-  (if (projectile-project-p)
-      (let ((TASK
-             (ido-completing-read "Task to run: "
-                                  (taskrunner-get-tasks-from-cache) nil t)))
-        (if TASK
-            (taskrunner-run-task TASK (projectile-project-root) nil)
-          (message ido-taskrunner-no-task-warning))
-        )
-    )
-  )
-
-;;;###autoload
-(defun ido-taskrunner-project-curr-dir ()
-  "Select a task and run it in the directory visited by the currend buffer."
-  (interactive)
-  (ido-taskrunner--check-if-in-project)
-  (if (projectile-project-p)
-      (let ((TASK
-             (ido-completing-read "Task to run: "
-                                  (taskrunner-get-tasks-from-cache) nil t)))
-        (if TASK
-            (taskrunner-run-task TASK (file-name-directory (buffer-file-name)) nil)
-          (message ido-taskrunner-no-task-warning))
-        )
-    )
-  )
-
-;;;###autoload
-(defun ido-taskrunner-project-curr-dir-prompt ()
-  "Select a task and run it in the directory visited by the currend buffer.
-Additionally, ask the user to supply extra arguments."
-  (interactive)
-  (ido-taskrunner--check-if-in-project)
-  (if (projectile-project-p)
-      (let ((TASK
-             (ido-completing-read "Task to run: "
-                                  (taskrunner-get-tasks-from-cache) nil t)))
-        (when TASK
-          (taskrunner-run-task TASK (file-name-directory (buffer-file-name)) t)))
+      (taskrunner-refresh-cache-async 'ido-taskrunner--run-ido-for-targets)
     (message ido-taskrunner-no-project-warning)))
 
 ;;;###autoload
-(defun ido-taskruner-task-buffers ()
-  "Show all ido-taskrunner compilation buffers."
+(defun ido-taskrunner-rerun-last-command ()
+  "Rerun the last command/task ran in the currently visited project."
+  (ido-taskrunner--check-if-in-project)
+  (if (projectile-project-p)
+      (taskrunner-rerun-last-task (projectile-project-root))
+    (message ido-taskrunner-no-project-warning)))
+
+;;;###autoload
+(defun ido-taskruner-switch-to-task-buffer ()
+  "Show all ido-taskrunner compilation buffers and switch to the selected one."
   (interactive)
   (let ((task-buffs (taskrunner-get-compilation-buffers))
         (selected-buffer nil))
