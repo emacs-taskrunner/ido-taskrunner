@@ -70,6 +70,7 @@
 
 ;;;; Variables
 
+;; Customizable variables
 (defcustom ido-taskrunner-project-warning
   "ido-taskrunner: The currently visited buffer must be in a project in order to select a task!
 Please switch to a project which is recognized by projectile!"
@@ -120,12 +121,6 @@ This is only used when the minor mode is on."
   :group 'ido-taskrunner
   :type 'string)
 
-(defvar ido-taskrunner--retrieving-tasks-p nil
-  "Variable used to indicate if tasks are being retrieved in the background.")
-
-(defvar ido-taskrunner--tasks-queried-p nil
-  "Variable used to indicate if the user queried for tasks before they were ready.")
-
 ;; Variable aliases for customizable variables used in the backend
 (defvaralias 'ido-taskrunner-preferred-js-package-manager 'taskrunner-preferred-js-package-manager)
 (defvaralias 'ido-taskrunner-get-all-make-targets 'taskrunner-retrieve-all-make-targets)
@@ -137,6 +132,17 @@ This is only used when the minor mode is on."
 (defvaralias 'ido-taskrunner-doit-bin-path 'taskrunner-doit-bin-path)
 (defvaralias 'ido-taskrunner-no-previous-command-ran-warning 'taskrunner-no-previous-command-ran-warning)
 (defvaralias 'ido-taskrunner-command-history-size 'taskrunner-command-history-size)
+
+;; Internal variables
+(defvar ido-taskrunner--retrieving-tasks-p nil
+  "Variable used to indicate if tasks are being retrieved in the background.")
+
+(defvar ido-taskrunner--tasks-queried-p nil
+  "Variable used to indicate if the user queried for tasks before they were ready.")
+
+(defvar ido-taskrunner--project-cached-p nil
+  "Stores the status of the project in the cache.
+Used to enable prompts before displaying `ido-taskrunner'.")
 
 (defconst ido-taskrunner--command-location-choices
   '("Project Root"
@@ -231,7 +237,7 @@ If TARGETS is nil then a warning is shown to indicate that no targets were found
   (if (null TARGETS)
       (message ido-taskrunner-no-targets-found-warning)
     (if (and ido-taskrunner-prompt-before-show
-             (not (taskrunner-project-cached-p (projectile-project-root))))
+             ido-taskrunner--project-cached-p)
         (when (y-or-n-p "Show ido-taskrunner? ")
           (ido-taskrunner--show-ido-task-instance TARGETS))
       (ido-taskrunner--show-ido-task-instance TARGETS))))
@@ -244,12 +250,23 @@ have to be retrieved, it might take several seconds."
   (interactive)
   (ido-taskrunner--check-if-in-project)
   (if (projectile-project-p)
-      (if (and ido-taskrunner-minor-mode
-               ido-taskrunner--retrieving-tasks-p)
-          (progn
-            (setq ido-taskrunner--tasks-queried-p t)
-            (message ido-taskrunner-tasks-being-retrieved-warning))
-        (taskrunner-get-tasks-async 'ido-taskrunner--run-ido-for-targets))
+      (progn
+        (setq ido-taskrunner--project-cached-p (not (taskrunner-project-cached-p (projectile-project-root))))
+        (if (and ido-taskrunner-minor-mode
+                 ido-taskrunner--retrieving-tasks-p)
+            (progn
+              (setq ido-taskrunner--tasks-queried-p t)
+              (message ido-taskrunner-tasks-being-retrieved-warning))
+          (taskrunner-get-tasks-async 'ido-taskrunner--run-ido-for-targets)))
+    (message ido-taskrunner-project-warning)))
+
+;;;###autoload
+(defun ido-taskrunner-rerun-last-command ()
+  "Rerun the last command/task ran in the currently visited project."
+  (interactive)
+  (ido-taskrunner--check-if-in-project)
+  (if (projectile-project-p)
+      (taskrunner-rerun-last-task (projectile-project-root))
     (message ido-taskrunner-project-warning)))
 
 ;;;###autoload
@@ -262,22 +279,17 @@ have to be retrieved, it might take several seconds."
     (message ido-taskrunner-project-warning)))
 
 ;;;###autoload
-(defun ido-taskrunner-rerun-last-command ()
-  "Rerun the last command/task ran in the currently visited project."
-  (ido-taskrunner--check-if-in-project)
-  (if (projectile-project-p)
-      (taskrunner-rerun-last-task (projectile-project-root))
-    (message ido-taskrunner-project-warning)))
-
-;;;###autoload
 (defun ido-taskrunner-buffers ()
   "Show all `ido-taskrunner' compilation buffers and switch to the selected one."
   (interactive)
   (let ((task-buffs (taskrunner-get-compilation-buffers))
         (selected-buffer nil))
-    (setq selected-buffer (ido-completing-read "Buffer to open: " task-buffs nil t))
-    (when selected-buffer
-      (switch-to-buffer selected-buffer))))
+    (if task-buffs
+        (progn
+          (setq selected-buffer (ido-completing-read "Buffer to open: " task-buffs nil t))
+          (when selected-buffer
+            (switch-to-buffer selected-buffer)))
+      (message ido-taskrunner-no-buffers-warning))))
 
 ;;;###autoload
 (defun ido-taskrunner-kill-all-buffers ()
@@ -321,7 +333,7 @@ have to be retrieved, it might take several seconds."
 (define-minor-mode ido-taskrunner-minor-mode
   "Minor mode for asynchronously collecting project tasks when a project is switched to."
   :init-value nil
-  :lighter " IT"
+  :lighter " IdT"
   :global t
   ;; Add/remove the hooks when minor mode is toggled on or off
   (if ido-taskrunner-minor-mode
