@@ -140,8 +140,9 @@ Some variables of interest are:
 - ~ido-taskrunner-prompt-before-show~: The ~ido-taskrunner~ tasks/targets are
   retrieved asynchronously. While this is being done, you are free to do what
   you please(edit text, scroll around and so on). If you would like to be
-  prompted before the ~ido~ buffer is shown for selection(just in case you do not
-  end up typing into it) then set this to true. Its default is ~nil~.
+  prompted before the ~ido~ buffer is shown for selection after targets which have
+  not been cached/retrieved before are ready to be displayed then set this
+  variable to ~t~. Its default value is ~nil~.
 *** Warnings
 If English is not your preferred language then you can set these warnings to
 whatever you would like.
@@ -156,11 +157,13 @@ whatever you would like.
   configuration files found for the build/taskrunner system in the current project.
 - ~ido-taskrunner-command-history-empty-warning~: Warning used when there are no
   items in the command history for the currently visited project.
-- ~ido-taskrunner-no-buffers-warning~: Warning used when there are not
+- ~ido-taskrunner-no-buffers-warning~: Warning used when there are no 
   ~ido-taskrunner~ compilation buffers.
 - ~ido-taskrunner-tasks-being-retrieved-warning~: Warning used to indicate that
   tasks are being retrieved in the background. It is only shown if the
   ~ido-taskrunner-minor-mode~ is toggled on.
+- ~ido-taskrunner-no-location-selected-warning~: Warning used when the user
+  selects a command to run but does not select a location.
 * Supported build/taskrunner systems
 The following systems are currently supported:
 - [X] yarn/npm
