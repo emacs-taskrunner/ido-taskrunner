@@ -220,7 +220,7 @@ have to be retrieved, it might take several seconds."
     (message ido-taskrunner-no-project-warning)))
 
 ;;;###autoload
-(defun ido-taskruner-switch-to-task-buffer ()
+(defun ido-taskruner-buffers ()
   "Show all ido-taskrunner compilation buffers and switch to the selected one."
   (interactive)
   (let ((task-buffs (taskrunner-get-compilation-buffers))
@@ -234,6 +234,19 @@ have to be retrieved, it might take several seconds."
   "Kill all ido-taskrunner compilation buffers."
   (interactive)
   (taskrunner-kill-compilation-buffers))
+
+;; Functions related to command history
+;;;###autoload
+(defun ido-taskrunner-command-history ()
+  "Show the command history for the currently visited project."
+  (interactive)
+  (ido-taskrunner--check-if-in-project)
+  (if (projectile-project-p)
+      (let ((commands-ran (taskrunner-get-commands-from-history (projectile-project-root))))
+        (if commands-ran
+            (ido-taskrunner--run-ido-for-targets commands-ran)
+          (message ido-taskrunner-command-history-empty-warning)))
+    (message ido-taskrunner-project-warning)))
 
 (provide 'ido-taskrunner)
 ;;; ido-taskrunner.el ends here
