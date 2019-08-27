@@ -6,7 +6,7 @@
 ;; URL: https://github.com/emacs-taskrunner/ido-taskrunner
 ;; Version: 0.8
 ;; Package-Requires: ((emacs "25.1"))
-;; Keywords: build-system taskrunner build task-runner tasks ido
+;; Keywords: build-system taskrunner build task-runner tasks ido convenience
 
 ;; This file is not part of GNU Emacs.
 
@@ -114,12 +114,17 @@ This is only used when the minor mode is on."
   :group 'ido-taskrunner
   :type 'string)
 
+(defcustom ido-taskrunner-no-location-selected-warning
+  "ido-taskrunner: You must select a location to run the command in!"
+  "Warning used to indicate that the user did not select a location to run the command in."
+  :group 'ido-taskrunner
+  :type 'string)
+
 (defvar ido-taskrunner--retrieving-tasks-p nil
   "Variable used to indicate if tasks are being retrieved in the background.")
 
 (defvar ido-taskrunner--tasks-queried-p nil
   "Variable used to indicate if the user queried for tasks before they were ready.")
-
 
 ;; Variable aliases for customizable variables used in the backend
 (defvaralias 'ido-taskrunner-preferred-js-package-manager 'taskrunner-preferred-js-package-manager)
@@ -194,7 +199,7 @@ Prompt the user to supply extra arguments."
 COMMAND is the command to run and LOCATION is the location chosen."
   (cond
    ((null LOCATION)
-    (message "You need to select a location to run it in!"))
+    (message ido-taskrunner-no-location-selected-warning))
    ((string-equal LOCATION "Project Root")
     (ido-taskrunner--root-task COMMAND))
    ((string-equal LOCATION "Project Root with args")
@@ -224,7 +229,7 @@ COMMAND is the command to run and LOCATION is the location chosen."
   "Launch an ido instance with candidates TARGETS.
 If TARGETS is nil then a warning is shown to indicate that no targets were found."
   (if (null TARGETS)
-      (message "No tasks")
+      (message ido-taskrunner-no-targets-found-warning)
     (if (and ido-taskrunner-prompt-before-show
              (not (taskrunner-project-cached-p (projectile-project-root))))
         (when (y-or-n-p "Show ido-taskrunner? ")
@@ -254,7 +259,7 @@ have to be retrieved, it might take several seconds."
   (ido-taskrunner--check-if-in-project)
   (if (projectile-project-p)
       (taskrunner-refresh-cache-async 'ido-taskrunner--run-ido-for-targets)
-    (message ido-taskrunner-no-project-warning)))
+    (message ido-taskrunner-project-warning)))
 
 ;;;###autoload
 (defun ido-taskrunner-rerun-last-command ()
@@ -262,11 +267,11 @@ have to be retrieved, it might take several seconds."
   (ido-taskrunner--check-if-in-project)
   (if (projectile-project-p)
       (taskrunner-rerun-last-task (projectile-project-root))
-    (message ido-taskrunner-no-project-warning)))
+    (message ido-taskrunner-project-warning)))
 
 ;;;###autoload
-(defun ido-taskruner-buffers ()
-  "Show all ido-taskrunner compilation buffers and switch to the selected one."
+(defun ido-taskrunner-buffers ()
+  "Show all `ido-taskrunner' compilation buffers and switch to the selected one."
   (interactive)
   (let ((task-buffs (taskrunner-get-compilation-buffers))
         (selected-buffer nil))
@@ -276,7 +281,7 @@ have to be retrieved, it might take several seconds."
 
 ;;;###autoload
 (defun ido-taskrunner-kill-all-buffers ()
-  "Kill all ido-taskrunner compilation buffers."
+  "Kill all `ido-taskrunner' compilation buffers."
   (interactive)
   (taskrunner-kill-compilation-buffers))
 
@@ -316,7 +321,7 @@ have to be retrieved, it might take several seconds."
 (define-minor-mode ido-taskrunner-minor-mode
   "Minor mode for asynchronously collecting project tasks when a project is switched to."
   :init-value nil
-  :lighter " HT"
+  :lighter " IT"
   :global t
   ;; Add/remove the hooks when minor mode is toggled on or off
   (if ido-taskrunner-minor-mode
