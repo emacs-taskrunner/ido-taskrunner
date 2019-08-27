@@ -3,15 +3,15 @@
 ;; Copyright (C) 2019 Yavor Konstantinov
 
 ;; Author: Yavor Konstantinov <ykonstantinov1 AT gmail DOT com>
-;; URL: https://github.com/emacs-taskrunner/helm-taskrunner
+;; URL: https://github.com/emacs-taskrunner/ido-taskrunner
 ;; Version: 0.8
 ;; Package-Requires: ((emacs "25.1"))
-;; Keywords: build-system taskrunner build task-runner tasks helm
+;; Keywords: build-system taskrunner build task-runner tasks ido
 
 ;; This file is not part of GNU Emacs.
 
 ;;; Commentary:
-;; This package provides an helm interface to the taskrunner library
+;; This package provides an ido interface to the taskrunner library
 
 ;;;; Installation
 
@@ -163,26 +163,44 @@ COMMAND is the command to run and LOCATION is the location chosen."
    ((string-equal LOCATION "Another Dir with args")
     (ido-taskrunner--select-dir-prompt COMMAND))))
 
+(defmacro ido-taskrunner--show-ido-task-instance (TARGET-LIST)
+  "Show in an instance of `ido' for TARGET-LIST."
+  `(let ((command-choice)
+         (folder-choice))
+     (setq command-choice (ido-completing-read "Task to run: " ,TARGET-LIST nil t))
+     (when command-choice
+       (setq folder-choice (ido-completing-read
+                            "Location to run task in: "
+                            ido-taskrunner--command-location-choices
+                            nil t))
+       (ido-taskrunner--command-dispatch command-choice folder-choice))))
+
 (defun ido-taskrunner--run-ido-for-targets (TARGETS)
   "Launch an ido instance with candidates TARGETS.
 If TARGETS is nil then a warning is shown to indicate that no targets were found."
-  (let ((command-choice)
-        (folder-choice))
-    (if (null TARGETS)
-        (message "No tasks")
-      (progn
-        (setq command-choice (ido-completing-read "Task to run: " TARGETS nil t))
-        (when command-choice
-          (setq folder-choice (ido-completing-read
-                               "Location to run task in: "
-                               ido-taskrunner--command-location-choices
-                               nil t))
-          (ido-taskrunner--command-dispatch command-choice folder-choice)
-          )
-        )
-      )
-    )
-  )
+  (if (null TARGETS)
+      (message "No tasks")
+    (if (and ido-taskrunner-prompt-before-show
+             (not (taskrunner-project-cached-p (projectile-project-root))))
+        (when (y-or-n-p "Show ido-taskrunner? ")
+          (ido-taskrunner--show-ido-task-instance TARGETS))
+      (ido-taskrunner--show-ido-task-instance TARGETS))))
+
+;;;###autoload
+(defun ido-taskrunner ()
+  "Launch ido to select a task which is ran in the currently visited project.
+This command runs asynchronously and depending on the number of tasks which
+have to be retrieved, it might take several seconds."
+  (interactive)
+  (ido-taskrunner--check-if-in-project)
+  (if (projectile-project-p)
+      (if (and ido-taskrunner-minor-mode
+               ido-taskrunner--retrieving-tasks-p)
+          (progn
+            (setq ido-taskrunner--tasks-queried-p t)
+            (message ido-taskrunner-tasks-being-retrieved-warning))
+        (taskrunner-get-tasks-async 'ido-taskrunner--run-ido-for-targets))
+    (message ido-taskrunner-project-warning)))
 
 ;;;###autoload
 (defun ido-taskrunner-update-cache ()
