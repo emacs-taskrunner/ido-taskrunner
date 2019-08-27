@@ -1,0 +1,205 @@
+* ido-taskrunner
+ido-taskrunner is a ido interface to the [[https://github.com/emacs-taskrunner/emacs-taskrunner][emacs-taskrunner]] library. It provides
+a convenient way to select targets/tasks within the current project and run them
+in a custom compilation buffer.
+
+The majority of the tasks/targets are gathered by either parsing
+files(makefiles) or parsing the output of the taskrunner/build systems. This can
+sometimes be a bit slow but this is made to be a (usually) one time cost. All
+tasks retrieved are saved in a cache which persists after an emacs instance is
+killed and then loaded up again when emacs/ido-taskrunner is started.
+
+*Warning*: I have not worked with most of these build systems/taskrunners but
+ support has been provided for them. Since my knowledge is fairly elementary, I
+ might miss some subtleties. If you have any advice then please feel free to
+ open a pull request on the repository hosting the backend for this project
+ which can be found [[https://github.com/emacs-taskrunner/emacs-taskrunner][here]]. Thanks!
+** ido-taskrunner in action
+GIF's coming soon
+* Installation
+** MELPA
+This package will be submitted to melpa shortly.
+** Manually
+To install this package, you will need the following:
+
+- [[https://github.com/bbatsov/projectile][projectile]] 
+- [[https://github.com/emacs-taskrunner/emacs-taskrunner][taskrunner]]
+- [[https://github.com/jwiegley/emacs-async][emacs-async]] 
+* Usage
+** Functions
+There are several entry points for this package:
+- ~ido-taskrunner~: This function gathers all of the tasks from the
+  taskrunners/build systems at the project root asynchronously. The tasks
+  gathered are then presented in a ido buffer where the user can select one of
+  them to run. The tasks can be ran in 6 different places:
+  - at project root
+  - at project root with extra arguments supplied by the user
+  - at directory visited by the current buffer
+  - at directory visited by the current buffer with extra arguments supplied by
+    the user
+  - at a custom directory selected by the user
+  - at a custom directory selected by the user with extra arguments supplied by
+    the user
+    
+    *Warning*: This function is asynchronous so the tasks might now appear for a
+    few seconds. You are free to continue working until they do. If for some
+    reason no tasks can be located, an error message will be displayed in the
+    echo buffer.
+
+    *Warning*: Whenever ~ido-taskrunner~ is used to run a command in another
+    repository and the project is either one which uses ~Make~ , ~CMake~ or
+    ~Meson/Ninja~ then the first four places(at project root, project root with
+    args, currently visited directory and currently visited directory with args)
+    will always use the build folder path locted by ~ido-taskrunner~. This means
+    that using the currently visited directory will be ignored. This means that
+    if there is a project where the command ~make build~ is invoked from a folder
+    called ~~/my-project/some-folder~ then ~ido-taskrunner~ will call the command
+    and run it in the directory ~~/my-project/build~.
+- ~ido-taskrunner-buffers~: Every time a command is ran, a new buffer is spawned
+  containing that commands output. This command displays a ido buffer letting
+  the user select one of these command buffers and switch to it. It can be used
+  to quickly check the status of running tasks.
+- ~ido-taskrunner-kill-all-buffers~: Kill all command buffers.
+- ~ido-taskrunner-config-files~: The majority of taskrunner/build systems have
+  some type of a configuration file associate with them(Make -> Makefile, Grunt
+  -> gruntfile and so on...). When this function is invoked, a ido buffer will
+  display all configuration files for all build/taskrunner systems detected at
+  project root. The user can then select one of them and the file will be
+  opened. This function will also work for build/taskrunner systems which have
+  multiple configuration files(ex. Gradle or Cabal). If this is the case then
+  the user will be presented with all possible such files and will again be able
+  to select one of them to open.
+- ~ido-taskrunner-rerun-last-command~: When invoked, this function will rerun the
+  last command ran in the project. The command is ran in the same directory as
+  before so if a different directory than the project root was selected, the
+  command will be ran there again.
+- ~ido-taskrunner-update-cache~: To speed up the task process and minimize wait
+  time for the user, ido-taskrunner uses a cache for targets/tasks
+  collected. When the ~ido-taskrunner~ command is called, the cache is
+  checked. If the tasks have been cached then they are returned immediately and
+  displayed to the user. Sometimes, more tasks can be added to the configuration
+  files of the taskrunner/build system and they will not be displayed. When this
+  command is called, the cache is overwritten and the tasks are gathered all
+  over again and displayed to the user. If you have added new tasks and do not
+  see them then call this function to update the cache and include them for
+  selection.
+- ~ido-taskrunner-command-history~: Show a ido instance filled with the latest
+  commands ran in the current project.
+** Minor mode
+~ido-taskrunner~ comes with its own minor mode called
+~ido-taskrunner-minor-mode~. It is a global minor mode which attaches a function to
+the ~projectile-after-switch-project-hook~. When this minor mode is enabled, tasks
+for the currently visited project are retrieved in the background so they are
+ready whenever you need them. If you attempt to start ~ido-taskrunner~ while the
+tasks are being gathered in the background, a warning will be shown to let you
+know that they are not available at the moment. As soon as they are gathered, a
+~ido~ window will be shown which will let you choose from them. When this mode is
+toggled off, the function is removed from the hook.
+
+Using this minor mode is completely optional. The only benefit is that tasks are
+retrieved as soon as you switch to a project using ~projectile~.
+
+The minor mode will appear in the modeline as ~IdT~.
+** Variables
+Some variables of interest are:
+- ~ido-taskrunner-preferred-js-package-manager~: Choose if you prefer npm or
+  yarn. This is usually deduced automatically depending on the presence of a
+  ~package-lock.json~ file or ~yarn.lock~ file but if those are not found then this
+  variable value is used if it is not nil. If this variable is left nil(its default) then ~npm~ is
+  whenever the package manager cannot be deduced.
+- ~ido-taskrunner-get-all-make-targets~: When this variable is not nil then all
+  make targets are retrieved including those which start with ~_~ (underscore)
+  which are usually considered to be "hidden". Its default value is t.
+- ~ido-taskrunner-build-dir-list~: This variable holds a list of strings where
+  each of them is a possible name of the build folder used in a project. Its
+  default value contains: ~build, Build, buildDir, builddir, builds~. When
+  ido-taskrunner is attempting to locate a ~Makefile~ for ~CMake~ or a ~build.ninja~
+  for ~meson~ then all of the directories in this list are checked one by one. The first
+  directory which contains one of these files is used as the build folder and
+  build targets are collected from there. If you use a different name for build
+  directories which you would like searched then please append the name to the
+  list assigned to this variable.
+- ~ido-taskrunner-source-dir-list~: This variable is similar to the build-dir-list
+  one. It contains a list of strings and each one indicates a possible name for
+  the source folder of a project. Its default value is: ~src, Src, source,
+  Source~. When ido-taskrunner is attempting to locate the ~CMakeLists.txt~ or
+  ~meson.build~ files, it checks these directories in case it is an in-source
+  build. If you use a different name for source directories then please append
+  that to the list assigned to this variable.
+- ~ido-taskrunner-go-task-bin-path~: This variable contains the path used to
+  locate the folder containing the golang binary for the [[https://github.com/go-task/task][go-task]] taskrunner. Its default is ~/home/USER/go/bin~.
+- ~ido-taskrunner-mage-bin-path~: This variable contains the path used to
+  locate the folder containing the golang binary for the [[https://github.com/magefile/mage][mage]] taskrunner. Its default is ~/home/USER/go/bin~.
+- ~ido-taskrunner-doit-bin-path~: This variable contains the path used to locate
+  the folder containing the binary for the [[https://github.com/pydoit/doit][doit]] taskrunner. Its default is
+  ~/home/USER/.local/bin~.
+- ~ido-taskrunner-command-history-size~: This variable controls the number of
+  saved commands in the history cache. Its default value is 10.
+- ~ido-taskrunner-use-fuzzy-match~: Whether or not ~ido~ uses fuzzy-matching or
+  not. Its default is ~t~.
+- ~ido-taskrunner-prompt-before-show~: The ~ido-taskrunner~ tasks/targets are
+  retrieved asynchronously. While this is being done, you are free to do what
+  you please(edit text, scroll around and so on). If you would like to be
+  prompted before the ~ido~ buffer is shown for selection(just in case you do not
+  end up typing into it) then set this to true. Its default is ~nil~.
+*** Warnings
+If English is not your preferred language then you can set these warnings to
+whatever you would like.
+- ~ido-taskrunner-no-previous-command-ran-warning~: This variable holds a string
+  which is displayed to the user when there is no previous command which can be
+  reran in the current project. Change this if you would like to see something different.
+- ~ido-taskrunner-project-warning~: Warning used when the currently visited
+  buffer is not in a  project recognized by ~projectile.~
+- ~ido-taskrunner-no-targets-found-warning~: Warning used when there have been no
+  targets/tasks found in the current project.
+- ~ido-taskrunner-no-files-found-warning~: Warning used when there have been no
+  configuration files found for the build/taskrunner system in the current project.
+- ~ido-taskrunner-command-history-empty-warning~: Warning used when there are no
+  items in the command history for the currently visited project.
+- ~ido-taskrunner-no-buffers-warning~: Warning used when there are not
+  ~ido-taskrunner~ compilation buffers.
+- ~ido-taskrunner-tasks-being-retrieved-warning~: Warning used to indicate that
+  tasks are being retrieved in the background. It is only shown if the
+  ~ido-taskrunner-minor-mode~ is toggled on.
+* Supported build/taskrunner systems
+The following systems are currently supported:
+- [X] yarn/npm
+- [X] Gulp
+- [X] Grunt
+- [X] Gradle
+- [X] Jake
+- [X] Apache ant
+- [X] mix
+- [X] leinengen
+- [X] rake
+- [X] Make
+- [X] CMake
+- [X] Meson/Ninja
+- [X] [[https://github.com/go-task/task][go-task]] 
+- [X] [[https://github.com/magefile/mage][mage]] 
+- [X] [[https://github.com/pydoit/doit][doit]] 
+- [X] [[https://github.com/jakedeichert/mask][mask]] 
+- [X] [[https://github.com/casey/just][just]] 
+- [X] [[https://github.com/sagiegurari/cargo-make][cargo-make]]
+- [X] cargo(Limited Support)
+- [X] go compiler(Limited support)
+- [X] Cask(Limited Support)
+- [X] stack(Limited Support)
+- [X] cabal(Limited Support)
+** Planning to support
+*** Features
+- Multiple build folders
+*** Systems
+- [ ] Apache maven
+- [ ] [[https://waf.io/][waf]] 
+- [ ] [[https://github.com/pantsbuild/pants][pants]] 
+- [ ] tasks.json(VSCode)
+- [ ] Ninja
+- [ ] sbt
+- [ ] Buck
+- [ ] Bazel
+- [ ] msbuild(Maybe)
+* Bug Reports and Echancement Requests
+If you have a bug report related to the user interface then please submit it
+here. Otherwise, all other bug reports and enhancement requests should go to the
+[[https://github.com/emacs-taskrunner/emacs-taskrunner][emacs-taskrunner repository]].
