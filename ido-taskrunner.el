@@ -248,5 +248,35 @@ have to be retrieved, it might take several seconds."
           (message ido-taskrunner-command-history-empty-warning)))
     (message ido-taskrunner-project-warning)))
 
+;; Minor mode related
+
+;; TODO: There might be an issue if the user switches projects too quickly(as in
+;; open one project and then directly open another). This might lead to the
+;; caches being corrupted.
+
+(defun ido-taskrunner--projectile-hook-function ()
+  "Collect tasks in the background when `projectile-switch-project' is called."
+  (setq ido-taskrunner--retrieving-tasks-p t)
+  (taskrunner-get-tasks-async (lambda (TARGETS)
+                                (setq ido-taskrunner--retrieving-tasks-p nil)
+                                ;; If the tasks were queried, show them to the user
+                                (when ido-taskrunner--tasks-queried-p
+                                  (setq ido-taskrunner--tasks-queried-p nil)
+                                  (ido-taskrunner--run-ido-for-targets TARGETS)))
+                              (projectile-project-root)))
+
+;; Thanks to Marcin Borkowski for the `:init-value' tip
+;; http://mbork.pl/2018-11-03_A_few_remarks_about_defining_minor_modes
+;;;###autoload
+(define-minor-mode ido-taskrunner-minor-mode
+  "Minor mode for asynchronously collecting project tasks when a project is switched to."
+  :init-value nil
+  :lighter " HT"
+  :global t
+  ;; Add/remove the hooks when minor mode is toggled on or off
+  (if ido-taskrunner-minor-mode
+      (add-hook 'projectile-after-switch-project-hook #'ido-taskrunner--projectile-hook-function)
+    (remove-hook 'projectile-after-switch-project-hook #'ido-taskrunner--projectile-hook-function)))
+
 (provide 'ido-taskrunner)
 ;;; ido-taskrunner.el ends here
