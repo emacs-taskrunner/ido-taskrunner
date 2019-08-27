@@ -232,7 +232,7 @@ COMMAND is the command to run and LOCATION is the location chosen."
        (ido-taskrunner--command-dispatch command-choice folder-choice))))
 
 (defun ido-taskrunner--run-ido-for-targets (TARGETS)
-  "Launch an ido instance with candidates TARGETS.
+  "Launch an `ido' instance with candidates TARGETS.
 If TARGETS is nil then a warning is shown to indicate that no targets were found."
   (if (null TARGETS)
       (message ido-taskrunner-no-targets-found-warning)
@@ -244,7 +244,7 @@ If TARGETS is nil then a warning is shown to indicate that no targets were found
 
 ;;;###autoload
 (defun ido-taskrunner ()
-  "Launch ido to select a task which is ran in the currently visited project.
+  "Launch `ido' to select a task which is ran in the currently visited project.
 This command runs asynchronously and depending on the number of tasks which
 have to be retrieved, it might take several seconds."
   (interactive)
