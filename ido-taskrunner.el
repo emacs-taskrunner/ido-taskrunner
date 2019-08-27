@@ -63,7 +63,63 @@
 (require 'ido)
 (require 'taskrunner)
 
+(defgroup ido-taskrunner nil
+  "Group for ido-taskrunner frontend."
+  :prefix "ido-taskrunner-"
+  :group 'convenience)
+
 ;;;; Variables
+
+(defcustom ido-taskrunner-project-warning
+  "ido-taskrunner: The currently visited buffer must be in a project in order to select a task!
+Please switch to a project which is recognized by projectile!"
+  "Warning used to indicate that the user is currently visiting a project."
+  :group 'ido-taskrunner
+  :type 'string)
+
+(defcustom ido-taskrunner-no-targets-found-warning
+  "ido-taskrunner: No targets found in the current project!"
+  "Warning used to indicate that no targets were found."
+  :group 'ido-taskrunner
+  :type 'string)
+
+(defcustom ido-taskrunner-no-files-found-warning
+  "ido-taskrunner: There are no configuration files for any taskrunner/build system in the current project."
+  "Warning used to indicate that no configuration files were found in the current project."
+  :group 'ido-taskrunner
+  :type 'string)
+
+(defcustom ido-taskrunner-prompt-before-show nil
+  "Whether or not to prompt the user before showing `ido-taskrunner' windon."
+  :group 'ido-taskrunner
+  :type 'boolean
+  :options '(t nil))
+
+(defcustom ido-taskrunner-command-history-empty-warning
+  "ido-taskrunner: Command history is empty!"
+  "Warning used to indicate that the command history is empty for the project."
+  :group 'ido-taskrunner
+  :type 'string)
+
+(defcustom ido-taskrunner-tasks-being-retrieved-warning
+  "ido-taskrunner: The tasks are currently being retrieved. They will be displayed when ready."
+  "Warning used to indicate that the tasks are being retrieved.
+This is only used when the minor mode is on."
+  :group 'ido-taskrunner
+  :type 'string)
+
+(defcustom ido-taskrunner-no-buffers-warning
+  "ido-taskrunner: No taskrunner buffers are currently opened!"
+  "Warning used to indicate that there are not task buffers opened."
+  :group 'ido-taskrunner
+  :type 'string)
+
+(defvar ido-taskrunner--retrieving-tasks-p nil
+  "Variable used to indicate if tasks are being retrieved in the background.")
+
+(defvar ido-taskrunner--tasks-queried-p nil
+  "Variable used to indicate if the user queried for tasks before they were ready.")
+
 
 ;; Variable aliases for customizable variables used in the backend
 (defvaralias 'ido-taskrunner-preferred-js-package-manager 'taskrunner-preferred-js-package-manager)
@@ -75,14 +131,7 @@
 (defvaralias 'ido-taskrunner-mage-bin-path 'taskrunner-mage-bin-path)
 (defvaralias 'ido-taskrunner-doit-bin-path 'taskrunner-doit-bin-path)
 (defvaralias 'ido-taskrunner-no-previous-command-ran-warning 'taskrunner-no-previous-command-ran-warning)
-
-(defconst ido-taskrunner-no-task-warning
-  "ido-taskrunner: No task has been selected!"
-  "Warning used to indicate that the user has not selected any task.")
-
-(defconst ido-taskrunner-no-project-warning
-  "ido-taskrunner: You need to be visiting a project buffer!"
-  "Warning used to indicate that the user is not visiting a project buffer.")
+(defvaralias 'ido-taskrunner-command-history-size 'taskrunner-command-history-size)
 
 (defconst ido-taskrunner--command-location-choices
   '("Project Root"
@@ -102,10 +151,6 @@ If it is not, prompt the user to select a project"
   (if (not (projectile-project-p))
       (projectile-switch-project)
     t))
-
-(defvar ido-taskrunner-no-targets-found-warning
-  "ido-taskrunner: No targets found for current project!")
-(defvar ido-taskrunner-prompt-before-show nil)
 
 ;; Functions which run tasks in a specific directory
 (defun ido-taskrunner--root-task (TASK)
